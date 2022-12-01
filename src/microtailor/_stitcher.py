@@ -1,15 +1,16 @@
 from pydantic import BaseModel, Extra, Field
 from typing import Union, Optional
+from ._pair_optimizer import PairOptimizer, pair_optimizers
 from ._global_optimizer import GlobalOptimizer, global_optimizers
 from ._typing_utils import NumArray, IntArray
 
 class Stitcher(BaseModel, extra=Extra.forbid):
     """Stitching base class."""
 
-    candidate_picker = Field(
-        "sqeuclidean",
-        description="The metric for calculating track linking cost. "
-        + "See documentation for `scipy.spatial.distance.cdist` for accepted values.",
+    candidate_estimator = Field(
+        "normalized_cross_correlation",
+        description="The local pair position optimization method. "
+        + f"Must be in [{','.join(pair_optimizers.keys())}] or a GlobalOptimizer instance."
     )
 
     position_interpolator = Field(
@@ -18,10 +19,10 @@ class Stitcher(BaseModel, extra=Extra.forbid):
         + "See documentation for `scipy.spatial.distance.cdist` for accepted values.",
     )
  
-    position_optimizer = Field(
-        "sqeuclidean",
-        description="The metric for calculating track linking cost. "
-        + "See documentation for `scipy.spatial.distance.cdist` for accepted values.",
+    pair_optimizer = Field(
+        "normalized_cross_correlation",
+        description="The local pair position optimization method. "
+        + f"Must be in [{','.join(pair_optimizers.keys())}] or a GlobalOptimizer instance."
     )
 
     global_optimizer : Union[str,GlobalOptimizer] = Field(
@@ -73,8 +74,8 @@ class Stitcher(BaseModel, extra=Extra.forbid):
         interpolated_positions = self.position_interpolator(images, coordinate_df)
         coordinate_df["interpolated_positions"] = interpolated_positions
 
-        optimized_positions = self.position_optimizer(images, coordinate_df)
+        optimized_positions = self.pair_optimizer(images, coordinate_df)
         coordinate_df["optimized_positions"] = optimized_positions
 
-        optimized_positions = self.position_optimizer(images, coordinate_df)
+        optimized_positions = self.pair_optimizer(images, coordinate_df)
         coordinate_df["optimized_positions"] = optimized_positions
