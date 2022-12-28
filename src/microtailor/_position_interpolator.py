@@ -1,15 +1,15 @@
 from abc import ABC, abstractmethod
 import pandas as pd
 
-class PairOptimizer(ABC):
+class PositionInterpolator(ABC):
     @abstractmethod
     def __call__(self, positions, ) -> pd.DataFrame:
         ...
 
-class NormalizedClossCorrelationOptimizer(PairOptimizer):
+class EllipticEnvelopeInterpolator(PositionInterpolator):
     def __call__(self, positions, ) -> pd.DataFrame:
         ...
 
-pair_optimizers={
-    "normalized_cross_correlation" : NormalizedClossCorrelationOptimizer,
+position_interpolators={
+    "elliptic_envelope" : EllipticEnvelopeInterpolator,
 }
