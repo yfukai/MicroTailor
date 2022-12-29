@@ -1,4 +1,4 @@
-from microtailor._stitcher import _calc_overlap_area_ratio
+from microtailor._stitcher import _calc_overlap_area_ratio, _parse_positions_to_pairs
 import numpy as np
 
 
@@ -22,3 +22,20 @@ def test_calc_overlap_area_ratio() -> None:
         res = _calc_overlap_area_ratio(image_shape,pos)
         print(res, ol/area, pos)
         assert np.isclose(res,ol/area)
+
+def test_parse_positions_to_pairs_tile_indices() -> None:
+    overlap_threshold_percentage = 5
+    image_shape = (123,456)
+
+    args = [
+        {
+            "tile_indices" : [(0,1,0),],
+            "estimated_positions" : [],
+        }, 
+    ]
+
+def test_parse_positions_to_pairs_estimated_positions() -> None:
+    overlap_threshold_percentage = 5
+    image_shape = (123,456,789)
+    estimated_positions = [(-100,-100),()]
+
