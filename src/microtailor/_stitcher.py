@@ -3,12 +3,12 @@ import pandas as pd
 import numpy as np
 from itertools import combinations
 import networkx as nx
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Dict
 from ._candidate_estimator import CandidateEstimator, candidate_estimators
 from ._position_interpolator import PositionInterpolator, position_interpolators
 from ._pair_optimizer import PairOptimizer, pair_optimizers
 from ._global_optimizer import GlobalOptimizer, global_optimizers
-from ._typing_utils import NumArray, IntArray, Int
+from ._typing_utils import NumArray, IntArray, Int, ArgType
 
 def _calc_overlap_area_ratio(image_shape,relative_pos):
     """Calculate the image overlap area ratio with respect to the image area.
@@ -40,17 +40,6 @@ def _parse_positions_to_pairs(
     overlap_threshold_percentage : float, optional
         The area percentage threshold to calculate pair displacement between tiles. Effective only when tile_indices is None.
     """
-
-    if tile_indices is None and estimated_positions is None:
-        raise ValueError("tile_indices and estimated_positions must not be None together.")
-    if (tile_indices is not None and estimated_positions is not None) and (len(tile_indices) != len(estimated_positions)):
-        raise ValueError("tile_indices and estimated_positions must have the same length.")
-    if (estimated_positions is not None) and len(estimated_positions) < 2:
-        raise ValueError("estimated_positions must have the length > 1.")
-    if tile_indices is not None and tile_indices.shape[1] != len(image_shape):
-        raise ValueError("entries of tile_indices must have the dimension same as the images.")
-    if estimated_positions is not None and estimated_positions.shape[1] != len(image_shape):
-        raise ValueError("entries of estimated_positions must have the dimension same as the images.")
 
     image_pairs = []
     if tile_indices is not None:
@@ -97,10 +86,11 @@ class Stitcher(BaseModel, extra=Extra.forbid, arbitrary_types_allowed = True):
     """Stitching base class."""
 
     candidate_estimator : Union[str,CandidateEstimator] = Field(
-        "phase correlation",
+        "phase_correlation",
         description="The pair position estimation method. "
         + f"Must be in [{','.join(candidate_estimators.keys())}] or a CandidateEstimator instance."
     )
+    candidate_estimator_params : Dict[str,ArgType] = Field({},description="The arguments for cendidate_estimator.")
 
     position_interpolator : Union[str,PositionInterpolator] = Field(
         "elliptic_envelope",
@@ -141,12 +131,18 @@ class Stitcher(BaseModel, extra=Extra.forbid, arbitrary_types_allowed = True):
         allowed_error : float, optional
             The allowed error from the `estimated_positions` in pixel, by default 20.
         """
-
         if tile_indices is None and estimated_positions is None:
-            raise ValueError("tile_indices and estimted_positions must not be None at the same time.")
+            raise ValueError("tile_indices and estimated_positions must not be None together.")
+        if (tile_indices is not None and estimated_positions is not None) and (len(tile_indices) != len(estimated_positions)):
+            raise ValueError("tile_indices and estimated_positions must have the same length.")
+        if (estimated_positions is not None) and len(estimated_positions) < 2:
+            raise ValueError("estimated_positions must have the length > 1.")
+        if tile_indices is not None and tile_indices.shape[1] != len(images.shape[1:]):
+            raise ValueError("entries of tile_indices must have the dimension same as the images.")
+        if estimated_positions is not None and estimated_positions.shape[1] != len(images.shape[1:]):
+            raise ValueError("entries of estimated_positions must have the dimension same as the images.")
 
-        # construct the initial dataframe
-
+        # construct the initial dataframe with entry 
         pairs_df = _parse_positions_to_pairs(
             images.shape[1:],
             tile_indices,
@@ -155,12 +151,14 @@ class Stitcher(BaseModel, extra=Extra.forbid, arbitrary_types_allowed = True):
         )
 
         pair_indices = pairs_df[["image_index1","image_index2"]].values
-        pairs_df["candidate_displacement"] = self.candidate_estimator(
+        pairs_df["candidate_displacement"], extra_fields = self.candidate_estimator(
             images, 
             pair_indices,
             pairs_df["estimated_displacement"].to_numpy(),
             allowed_error,
         )
+        for k, values in extra_fields.items():
+            pairs_df[k] = values
 
         pairs_df["interpolated_displacement"] = self.position_interpolator(
             images, 

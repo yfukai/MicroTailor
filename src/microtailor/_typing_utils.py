@@ -9,3 +9,5 @@ IntArray = npt.NDArray[np.int_]
 
 Int = Union[int, np.int_]
 Float = Union[float, np.float_]
+
+ArgType = Union[str,Int,Float]
