@@ -2,6 +2,7 @@ from pydantic import BaseModel, Extra, Field
 import pandas as pd
 import numpy as np
 from itertools import combinations
+import networkx as nx
 from typing import Union, Optional, List
 from ._candidate_estimator import CandidateEstimator, candidate_estimators
 from ._position_interpolator import PositionInterpolator, position_interpolators
@@ -42,16 +43,21 @@ def _parse_positions_to_pairs(
 
     if tile_indices is None and estimated_positions is None:
         raise ValueError("tile_indices and estimated_positions must not be None together.")
-    if tile_indices is not None and (len(tile_indices) != len(estimated_positions)):
+    if (tile_indices is not None and estimated_positions is not None) and (len(tile_indices) != len(estimated_positions)):
         raise ValueError("tile_indices and estimated_positions must have the same length.")
-    if len(estimated_positions) < 2:
+    if (estimated_positions is not None) and len(estimated_positions) < 2:
         raise ValueError("estimated_positions must have the length > 1.")
+    if tile_indices is not None and tile_indices.shape[1] != len(image_shape):
+        raise ValueError("entries of tile_indices must have the dimension same as the images.")
+    if estimated_positions is not None and estimated_positions.shape[1] != len(image_shape):
+        raise ValueError("entries of estimated_positions must have the dimension same as the images.")
 
     image_pairs = []
     if tile_indices is not None:
         for (j1,ind1), (j2,ind2) in combinations(enumerate(tile_indices),2):
             # if the images are the next to each other or at the same position
-            if (np.sum(np.abs(ind1 - ind2) == 1) == 1) or np.all(ind1 == ind2): 
+            diff = np.abs(ind1 - ind2)
+            if ((np.max(diff) == 1 and np.sum(diff == 1) == 1)) or np.all(ind1 == ind2): 
                 if estimated_positions is not None:
                     dpos = estimated_positions[j2]-estimated_positions[j1]
                 else:
@@ -64,15 +70,27 @@ def _parse_positions_to_pairs(
                 }) # image 2 position with respect to image 1
     else:
         for (j1,pos1), (j2,pos2) in combinations(enumerate(estimated_positions),2):
-            if _calc_overlap_area_ratio(image_shape,np.array(pos2)-np.array(pos1)) > overlap_threshold_percentage:
+            if _calc_overlap_area_ratio(image_shape,np.array(pos2)-np.array(pos1)) > overlap_threshold_percentage/100:
                 image_pairs.append({
                     "image_index1":j1,
                     "image_index2":j2,
                     "index_displacement":None,
                     "estimated_displacement":pos2-pos1
                 })
+    
+    if len(image_pairs) == 0:
+        raise RuntimeError("There is no valid image pairs. Please check tile_indices and estimated_positions.")
 
-    return pd.DataFrame.from_records(image_pairs)
+    pairs_df = pd.DataFrame.from_records(image_pairs)
+    pairs_graph = nx.Graph()
+    nodes_count = len(estimated_positions if estimated_positions is not None else tile_indices) 
+    pairs_graph.add_nodes_from(range(nodes_count))
+    pairs_graph.add_edges_from(pairs_df[["image_index1","image_index2"]].values)
+
+    if len(list(nx.connected_components(pairs_graph))) > 1:
+        raise ValueError("Parsing positions resulted more than one connected graphs.")
+
+    return pairs_df
    
 
 class Stitcher(BaseModel, extra=Extra.forbid, arbitrary_types_allowed = True):
