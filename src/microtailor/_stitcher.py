@@ -1,14 +1,16 @@
-from pydantic import BaseModel, Extra, Field
+from pydantic import BaseModel, Extra, Field, PrivateAttr
 import pandas as pd
 import numpy as np
 from itertools import combinations
 import networkx as nx
-from typing import Union, Optional, List, Dict
+from typing import Union, Optional, List, Dict, Any
 from ._candidate_estimator import CandidateEstimator, candidate_estimators
 from ._position_interpolator import PositionInterpolator, position_interpolators
 from ._pair_optimizer import PairOptimizer, pair_optimizers
 from ._global_optimizer import GlobalOptimizer, global_optimizers
 from ._typing_utils import NumArray, IntArray, Int, ArgType
+
+steps = { "candidate_estimator" : candidate_estimators }
 
 def _calc_overlap_area_ratio(image_shape,relative_pos):
     """Calculate the image overlap area ratio with respect to the image area.
@@ -91,6 +93,7 @@ class Stitcher(BaseModel, extra=Extra.forbid, arbitrary_types_allowed = True):
         + f"Must be in [{','.join(candidate_estimators.keys())}] or a CandidateEstimator instance."
     )
     candidate_estimator_params : Dict[str,ArgType] = Field({},description="The arguments for cendidate_estimator.")
+    _candidate_estimator_obj : CandidateEstimator = PrivateAttr()
 
     position_interpolator : Union[str,PositionInterpolator] = Field(
         "elliptic_envelope",
@@ -109,6 +112,15 @@ class Stitcher(BaseModel, extra=Extra.forbid, arbitrary_types_allowed = True):
         description="The global stage position optimization method. "
         + f"Must be in [{','.join(global_optimizers.keys())}] or a GlobalOptimizer instance."
     )
+
+    def __init__(self, **data: Any) -> None:
+        super().__init__(**data)
+        for key,choices in steps.items():
+            params = getattr(self,key+"_params")
+            if isinstance(getattr(self,key),str):
+                setattr(self,"_"+key+"_obj", choices[getattr(self,key)](**params))
+            else:
+                setattr(self,"_"+key+"_obj", getattr(self,key)(**params))
 
     def stitch(self, 
                images : NumArray, 
@@ -151,7 +163,7 @@ class Stitcher(BaseModel, extra=Extra.forbid, arbitrary_types_allowed = True):
         )
 
         pair_indices = pairs_df[["image_index1","image_index2"]].values
-        pairs_df["candidate_displacement"], extra_fields = self.candidate_estimator(
+        pairs_df["candidate_displacement"], extra_fields = self._candidate_estimator_obj(
             images, 
             pair_indices,
             pairs_df["estimated_displacement"].to_numpy(),

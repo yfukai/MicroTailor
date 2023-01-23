@@ -57,6 +57,9 @@ myst-parser = {version = ">=0.16.1"}
 [tool.poetry.scripts]
 MicroTailor = "microtailor.__main__:main"
 
+[tool.poetry.group.dev.dependencies]
+pytest-datadir = "^1.4.1"
+
 [tool.coverage.paths]
 source = ["src", "*/site-packages"]
 tests = ["tests", "*/tests"]

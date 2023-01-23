@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Extra, Field
 from abc import ABC, abstractmethod
+from typing import Optional
 from ._typing_utils import NumArray, Float, IntArray
 import numpy as np
 import numpy.typing as npt
@@ -21,11 +22,10 @@ class CandidateEstimator(ABC,BaseModel):
 class PhaseCorrelationEstimator(CandidateEstimator):
     num_candidates :int  = Field(5,description="number of candidate points")
 
-
     def __call__(self, 
             images : NumArray, 
             pair_indices : IntArray,
-            estimated_displacement: NumArray,
+            estimated_positions : Optional[NumArray],
             allowed_error: Float,) -> npt.NDArray[np.float_]:
         
         for pair_index in pair_indices:
